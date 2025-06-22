@@ -2,45 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ESP32 Heart Monitor</title>
-  <meta http-equiv="refresh" content="1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 Health Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #111;
-      color: #0f0;
-      margin-top: 50px;
+    .heart {
+      animation: heartbeat 1.5s infinite;
+      color: #ef4444;
     }
-    h1 {
-      font-size: 3em;
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      25%, 75% { transform: scale(1.1); }
+      50% { transform: scale(1); }
     }
-    .data {
-      font-size: 2em;
+    .digital-clock {
+      font-family: 'Segment7Standard', monospace;
+      letter-spacing: 2px;
+    }
+    @font-face {
+      font-family: 'Segment7Standard';
+      src: url('https://cdn.jsdelivr.net/gh/axesys/font-segment@master/Segment7Standard.otf') format('opentype');
     }
   </style>
 </head>
-<body>
-  <h1>ESP32 Heart Monitor</h1>
-  <div class="data" id="clock">Loading...</div>
-  <div class="data" id="bpm">BPM: --</div>
+<body class="bg-gray-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
+      <div class="p-8">
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800">❤️ ESP32 Health Monitor</h1>
+          <div class="flex items-center space-x-2">
+            <label for="oled-toggle" class="text-sm text-gray-600">OLED:</label>
+            <input type="checkbox" id="oled-toggle" class="accent-blue-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Heart Rate Section -->
+          <div class="bg-gray-50 p-6 rounded-lg">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-gray-700">Heart Rate <span class="heart">❤</span></h2>
+              <label class="flex items-center space-x-2">
+                <input type="checkbox" id="toggle-bpm" class="accent-blue-500" checked>
+                <span class="text-sm text-gray-600">Show BPM</span>
+              </label>
+            </div>
+            <div id="bpm-section">
+              <div class="flex items-end space-x-2">
+                <div id="bpm" class="text-5xl font-bold text-red-600">{{ bpm }}</div>
+                <div class="text-gray-500 text-lg">BPM</div>
+              </div>
+              <div class="mt-2 text-sm text-gray-500">
+                Last update: <span id="last-update">{{ last_update or "No data yet" }}</span>
+              </div>
+              <div class="mt-6">
+                <canvas id="bpmChart" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Clock Section -->
+          <div class="bg-gray-50 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Digital Clock</h2>
+            <div id="clock" class="digital-clock text-4xl font-bold text-indigo-600">
+              Loading...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    function updateData() {
-      fetch('/time')
-        .then(response => response.json())
-        .then(data => {
-          document.getElementById('clock').innerText = data.time;
-          if (data.show_bpm) {
-            document.getElementById('bpm').innerText = "BPM: " + data.bpm;
-          } else {
-            document.getElementById('bpm').innerText = "BPM: --";
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById("clock").textContent = `${h}:${m}:${s}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Toggle BPM visibility
+    document.getElementById("toggle-bpm").addEventListener("change", function () {
+      document.getElementById("bpm-section").style.display = this.checked ? "block" : "none";
+    });
+
+    // Chart
+    const ctx = document.getElementById("bpmChart").getContext("2d");
+    const bpmChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "BPM",
+          data: [],
+          borderColor: "#ef4444",
+          tension: 0.2,
+          fill: false,
+          pointRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: false },
+          y: {
+            beginAtZero: true,
+            suggestedMax: 150,
+            ticks: { stepSize: 10 }
           }
+        }
+      }
+    });
+
+    // Fetch BPM periodically
+    async function fetchBPM() {
+      try {
+        const response = await fetch("/api/bpm");
+        const result = await response.json();
+        const bpm = result.bpm ?? 0;
+        const now = new Date().toLocaleTimeString();
+
+        document.getElementById("bpm").textContent = bpm;
+        document.getElementById("last-update").textContent = now;
+
+        const chartData = bpmChart.data;
+        chartData.labels.push(now);
+        chartData.datasets[0].data.push(bpm);
+
+        if (chartData.labels.length > 20) {
+          chartData.labels.shift();
+          chartData.datasets[0].data.shift();
+        }
+
+        bpmChart.update();
+      } catch (error) {
+        console.error("Fetch BPM failed:", error);
+      }
+    }
+    setInterval(fetchBPM, 2000);
+
+    // OLED toggle
+    async function updateOLEDState(checked) {
+      try {
+        await fetch("/control/oled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ oled_on: checked })
         });
+      } catch (err) {
+        console.error("OLED control failed:", err);
+      }
     }
 
-    setInterval(updateData, 1000); // update setiap 1 detik
-    updateData(); // panggil sekali saat awal
+    // On page load, sync OLED toggle with server
+    window.addEventListener("DOMContentLoaded", async () => {
+      const toggle = document.getElementById("oled-toggle");
+      try {
+        const res = await fetch("/status/oled");
+        const data = await res.json();
+        toggle.checked = data.oled_on ?? true;
+      } catch {
+        toggle.checked = true;
+      }
+
+      toggle.addEventListener("change", () => {
+        updateOLEDState(toggle.checked);
+      });
+    });
   </script>
 </body>
 </html>
