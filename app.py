@@ -39,7 +39,6 @@ def control_oled():
 def get_oled_status():
     return jsonify({'oled_on': oled_on})
 
-# Tambahkan ini di app.py
 @app.route('/api/bpm', methods=['GET'])
 def get_bpm():
     global current_bpm, last_update
