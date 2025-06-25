@@ -24,17 +24,6 @@ def update_bpm():
     last_update = datetime.now().strftime("%H:%M:%S")
     return jsonify({'status': 'success'})
 
-@app.route('/control/beep', methods=['POST'])
-def control_beep():
-    # This endpoint would control the buzzer on the ESP32
-    return jsonify({'status': 'success'})
-
-@app.route('/clear_data')
-def clear_data():
-    global current_bpm, last_update
-    current_bpm = 0
-    last_update = None
-    return jsonify({'status': 'cleared'})
 
 @app.route('/control/oled', methods=['POST'])
 def control_oled():
@@ -49,6 +38,12 @@ def control_oled():
 @app.route('/status/oled', methods=['GET'])
 def get_oled_status():
     return jsonify({'oled_on': oled_on})
+
+# Tambahkan ini di app.py
+@app.route('/api/bpm', methods=['GET'])
+def get_bpm():
+    global current_bpm, last_update
+    return jsonify({'bpm': current_bpm, 'last_update': last_update})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
