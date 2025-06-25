@@ -18,8 +18,8 @@ const char* ssid = "althaf";
 const char* password = "mahardani";
 
 // Server Flask
-const char* serverUrl = "http://192.168.143.254:5000/api/bpm";
-const char* oledStatusUrl = "http://192.168.143.254:5000/status/oled";
+const char* serverUrl = "https://heartmonitor.vercel.app/api/bpm";
+const char* oledStatusUrl = "https://heartmonitor.vercel.app/status/oled";
 
 // Pulse oximeter
 PulseOximeter pox;
